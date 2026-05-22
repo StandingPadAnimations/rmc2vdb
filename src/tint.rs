@@ -38,6 +38,8 @@ static BIOME_MAP: OnceLock<HashMap<&'static str, BiomeInfo>> = OnceLock::new();
 // Biome corners, based on Mineways
 const GRASS_BIOME_CORNERS: [(u32, u32, u32); 3] = [(191, 183, 85), (128, 180, 151), (71, 205, 51)];
 const FOLIAGE_BIOME_CORNERS: [(u32, u32, u32); 3] = [(174, 164, 42), (96, 161, 123), (26, 191, 0)];
+const DRY_FOLIAGE_BIOME_CORNERS: [(u32, u32, u32); 3] =
+    [(16, 128, 70), (143, 122, 90), (26, 95, 70)];
 
 pub fn get_biome_map() -> &'static HashMap<&'static str, BiomeInfo> {
     BIOME_MAP.get_or_init(|| {
@@ -158,14 +160,19 @@ pub fn get_tint(block: &str, elevation: f32, biome: &str) -> (f32, f32, f32) {
             elevation,
             GRASS_BIOME_CORNERS,
         );
-    }
-
-    if is_foliage(block) {
+    } else if is_foliage(block) {
         return approximate_tint(
             info.temperature,
             info.downfall,
             elevation,
             FOLIAGE_BIOME_CORNERS,
+        );
+    } else if is_dry_folliage(block) {
+        return approximate_tint(
+            info.temperature,
+            info.downfall,
+            elevation,
+            DRY_FOLIAGE_BIOME_CORNERS,
         );
     }
 
@@ -200,6 +207,10 @@ fn is_foliage(block: &str) -> bool {
             | "minecraft:mangrove_leaves"
             | "minecraft:vines"
     )
+}
+
+fn is_dry_folliage(block: &str) -> bool {
+    block == "minecraft:leaf_litter"
 }
 
 /// Tinting algorithm derived from Mineways
