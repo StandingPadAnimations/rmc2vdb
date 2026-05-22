@@ -190,6 +190,8 @@ fn is_foliage(block: &str) -> bool {
     matches!(
         block,
         "minecraft:oak_leaves"
+            | "minecraft:birch_leaves"
+            | "minecraft:spruce_leaves"
             | "minecraft:jungle_leaves"
             | "minecraft:acacia_leaves"
             | "minecraft:dark_oak_leaves"
