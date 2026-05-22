@@ -17,6 +17,18 @@ cargo run --release -- \
   --remap "X -Z Y" \
 ```
 
+If you have an OBJ with a CommonMCOBJ header, you can also pass that in
+directly, assuming the source Minecraft world exists on the machine:
+
+```bash
+cargo run --release -- \
+  --commonmcobj-source "path/to/export.obj"
+  --remap "X -Z Y" \
+```
+
+This will output the VDB with the same name as the input OBJ, just with
+the VDB file extension.
+
 ## VDB Structure
 
 The exported file contains five grids:

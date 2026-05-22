@@ -15,14 +15,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+mod commonmcobj_parser;
 mod tint;
 mod world;
 
-use crate::tint::{DEFAULT_BIOME_INFO, get_biome_map, get_tint};
-use crate::world::{World, is_transparent};
+use std::fs;
+use std::io::BufReader;
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+
+use crate::commonmcobj_parser::parse_header;
+use crate::tint::{DEFAULT_BIOME_INFO, get_biome_map, get_tint};
+use crate::world::{World, is_transparent};
 
 #[cxx::bridge]
 mod ffi {
@@ -52,11 +58,11 @@ mod ffi {
 struct Args {
     /// Minecraft world directory (contains 'region').
     #[arg(short, long)]
-    world: PathBuf,
+    world: Option<PathBuf>,
 
     /// Output path for the .vdb volume.
     #[arg(short, long)]
-    output: PathBuf,
+    output: Option<PathBuf>,
 
     /// Start coordinates (x,y,z).
     #[arg(
@@ -95,6 +101,9 @@ struct Args {
         default_value = "0,0,0"
     )]
     offset: Vec<f32>,
+
+    #[arg(long)]
+    commonmcobj_source: Option<PathBuf>,
 }
 
 /// Orchestrates coordinate transformation and translation.
@@ -139,28 +148,20 @@ impl CoordinateMapper {
     }
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
+fn convert_world(
+    min_bounds: (i32, i32, i32),
+    max_bounds: (i32, i32, i32),
+    world: PathBuf,
+    output: PathBuf,
+    remap: &str,
+    solid: bool,
+    offset: (f32, f32, f32),
+) -> Result<()> {
+    let mut world = World::new(&world);
+    let coord_mapper = CoordinateMapper::new(remap)?;
 
-    if args.start.len() != 3 || args.end.len() != 3 {
-        anyhow::bail!("Both --start and --end must have 3 coordinates: x,y,z");
-    }
-
-    let min_x = args.start[0].min(args.end[0]);
-    let max_x = args.start[0].max(args.end[0]);
-    let min_y = args.start[1].min(args.end[1]);
-    let max_y = args.start[1].max(args.end[1]);
-    let min_z = args.start[2].min(args.end[2]);
-    let max_z = args.start[2].max(args.end[2]);
-
-    println!("Converting Minecraft world: {:?}", args.world);
-    println!(
-        "Bounds: ({}, {}, {}) to ({}, {}, {})",
-        min_x, min_y, min_z, max_x, max_y, max_z
-    );
-
-    let mut world = World::new(&args.world);
-    let coord_mapper = CoordinateMapper::new(&args.remap)?;
+    let (min_x, min_y, min_z) = min_bounds;
+    let (max_x, max_y, max_z) = max_bounds;
 
     let total_voxels =
         (max_x - min_x + 1) as u64 * (max_y - min_y + 1) as u64 * (max_z - min_z + 1) as u64;
@@ -187,15 +188,15 @@ fn main() -> Result<()> {
                     continue;
                 }
 
-                if !args.solid && !is_block_visible(&mut world, x, y, z)? {
+                if !solid && !is_block_visible(&mut world, x, y, z)? {
                     continue;
                 }
 
                 let (r, g, b) = get_tint(&block, z.max(0) as f32, &biome);
                 let (out_x, out_y, out_z) = coord_mapper.map(
-                    x as f32 + args.offset[0],
-                    y as f32 + args.offset[1],
-                    z as f32 + args.offset[2],
+                    x as f32 + offset.0,
+                    y as f32 + offset.1,
+                    z as f32 + offset.2,
                 );
 
                 let info = get_biome_map()
@@ -219,16 +220,69 @@ fn main() -> Result<()> {
     }
 
     println!("Collected {} points. Writing VDB...", points.len());
-    ffi::write_vdb(
-        args.output.to_str().context("Invalid output path")?,
-        &points,
-    )?;
+    ffi::write_vdb(output.to_str().context("Invalid output path")?, &points)?;
     println!("Done!");
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    if let Some(path) = args.commonmcobj_source {
+        let file = fs::File::open(&path)?;
+        let reader = BufReader::new(file);
+        let parsed_header = parse_header(reader);
+
+        if let Some(header) = parsed_header {
+            convert_world(
+                header.export_bounds_min,
+                header.export_bounds_max,
+                PathBuf::from(header.world_path),
+                path.with_extension("vdb"),
+                &args.remap,
+                args.solid,
+                header.export_offset,
+            )?;
+        } else {
+            anyhow::bail!("Passed file must have a CommonMCOBJ header!");
+        }
+    } else {
+        if args.start.len() != 3 || args.end.len() != 3 {
+            anyhow::bail!("Both --start and --end must have 3 coordinates: x,y,z");
+        }
+
+        let min_x = args.start[0].min(args.end[0]);
+        let max_x = args.start[0].max(args.end[0]);
+        let min_y = args.start[1].min(args.end[1]);
+        let max_y = args.start[1].max(args.end[1]);
+        let min_z = args.start[2].min(args.end[2]);
+        let max_z = args.start[2].max(args.end[2]);
+
+        if let (Some(w), Some(o)) = (args.world, args.output) {
+            println!("Converting Minecraft world: {:?}", w);
+            println!(
+                "Bounds: ({}, {}, {}) to ({}, {}, {})",
+                min_x, min_y, min_z, max_x, max_y, max_z
+            );
+
+            convert_world(
+                (min_x, min_y, min_z),
+                (max_x, max_y, max_z),
+                w,
+                o,
+                &args.remap,
+                args.solid,
+                (args.offset[0], args.offset[1], args.offset[2]),
+            )?;
+        } else {
+            anyhow::bail!("--world and --output are required if not using a CommonMCOBJ source");
+        }
+    }
 
     Ok(())
 }
 
-/// Returns true if the block is adjacent to any transparency.
+/// Returns true if the block is djacent to any transparency.
 fn is_block_visible(world: &mut World, x: i32, y: i32, z: i32) -> Result<bool> {
     const NEIGHBORS: [(i32, i32, i32); 6] = [
         (1, 0, 0),
