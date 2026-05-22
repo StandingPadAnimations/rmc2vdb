@@ -205,7 +205,7 @@ fn is_foliage(block: &str) -> bool {
             | "minecraft:acacia_leaves"
             | "minecraft:dark_oak_leaves"
             | "minecraft:mangrove_leaves"
-            | "minecraft:vines"
+            | "minecraft:vine"
     )
 }
 
