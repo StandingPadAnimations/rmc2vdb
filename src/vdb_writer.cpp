@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <openvdb/openvdb.h>
+#include <openvdb/tools/Prune.h>
 
 #include "rmc2vdb/src/main.rs.h"
 #include "vdb_writer.hpp"
@@ -40,7 +41,7 @@ public:
    * @return The 0-based integer index.
    */
   [[nodiscard]] int getIndex(const std::string_view name) {
-    const auto it = nameToIdx.find(std::string(name));
+    const auto it = nameToIdx.find(name);
     if (it != nameToIdx.end()) {
       return it->second;
     }
@@ -128,6 +129,14 @@ void write_vdb(const rust::Str filename,
     temperatureAccessor.setValue(coord, p.temperature);
     downfallAccessor.setValue(coord, p.downfall);
   }
+
+  // Prune grids to merge identical nodes and reduce size
+  densityGrid->tree().prune();
+  colorGrid->tree().prune();
+  blockGrid->tree().prune();
+  biomeGrid->tree().prune();
+  temperatureGrid->tree().prune();
+  downfallGrid->tree().prune();
 
   // Embed name dictionaries in the density grid's metadata
   blockMapper.writeMetadata(*densityGrid, "block_name_");
