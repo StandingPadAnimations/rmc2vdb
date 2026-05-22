@@ -1,0 +1,14 @@
+[package]
+name = "mc-to-vdb"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cxx = "1.0"
+fastanvil = "0.32"
+fastnbt = "2.6"
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+
+[build-dependencies]
+cxx-build = "1.0"
