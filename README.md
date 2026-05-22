@@ -35,7 +35,7 @@ The exported file contains five grids:
 
 - `density` (Float): 1.0 for solid blocks, 0.0 for air.
 - `color` (Vec3f): The sRGB tint of the block (0.0 - 1.0).
-- `block_index` (Int32): An integer identifier for the block type.
+- `biome_index` (Int32): Integer corresponding to biome.
 - `temperature` (Float): Temperature of the biome.
 - `downfall` (Float): Downfall of the biome.
 
