@@ -183,6 +183,8 @@ fn is_grass(block: &str) -> bool {
             | "minecraft:bush"
             | "minecraft:potted_fern"
             | "minecraft:sugar_cane"
+            | "minecraft:pink_petals"
+            | "minecraft:wildflowers"
     )
 }
 
