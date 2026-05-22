@@ -13,7 +13,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #include <cmath>
 #include <map>
@@ -23,8 +23,8 @@
 
 #include <openvdb/openvdb.h>
 
-#include "vdb_writer.hpp"
 #include "rmc2vdb/src/main.rs.h"
+#include "vdb_writer.hpp"
 
 namespace {
 
@@ -90,6 +90,9 @@ void write_vdb(const rust::Str filename,
   colorGrid->setName("color");
   colorGrid->setGridClass(openvdb::GRID_FOG_VOLUME);
 
+  const auto blockGrid = openvdb::Int32Grid::create(-1);
+  blockGrid->setName("block_index");
+
   const auto biomeGrid = openvdb::Int32Grid::create(-1);
   biomeGrid->setName("biome_index");
 
@@ -106,6 +109,7 @@ void write_vdb(const rust::Str filename,
 
   auto densityAccessor = densityGrid->getAccessor();
   auto colorAccessor = colorGrid->getAccessor();
+  auto blockAccessor = blockGrid->getAccessor();
   auto biomeAccessor = biomeGrid->getAccessor();
   auto temperatureAccessor = temperatureGrid->getAccessor();
   auto downfallAccessor = downfallGrid->getAccessor();
@@ -117,6 +121,8 @@ void write_vdb(const rust::Str filename,
 
     densityAccessor.setValue(coord, 1.0f);
     colorAccessor.setValue(coord, openvdb::Vec3f(p.r, p.g, p.b));
+    blockAccessor.setValue(coord, blockMapper.getIndex(std::string_view(
+                                      p.block.data(), p.block.size())));
     biomeAccessor.setValue(coord, biomeMapper.getIndex(std::string_view(
                                       p.biome.data(), p.biome.size())));
     temperatureAccessor.setValue(coord, p.temperature);
@@ -130,6 +136,7 @@ void write_vdb(const rust::Str filename,
   const auto transform = openvdb::math::Transform::createLinearTransform(1.0);
   densityGrid->setTransform(transform);
   colorGrid->setTransform(transform);
+  blockGrid->setTransform(transform);
   biomeGrid->setTransform(transform);
   temperatureGrid->setTransform(transform);
   downfallGrid->setTransform(transform);
@@ -137,6 +144,7 @@ void write_vdb(const rust::Str filename,
   openvdb::GridCPtrVec grids;
   grids.push_back(densityGrid);
   grids.push_back(colorGrid);
+  grids.push_back(blockGrid);
   grids.push_back(biomeGrid);
   grids.push_back(temperatureGrid);
   grids.push_back(downfallGrid);

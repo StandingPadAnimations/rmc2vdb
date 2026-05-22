@@ -31,10 +31,11 @@ the VDB file extension.
 
 ## VDB Structure
 
-The exported file contains five grids:
+The exported file contains six grids:
 
 - `density` (Float): 1.0 for solid blocks, 0.0 for air.
 - `color` (Vec3f): The sRGB tint of the block (0.0 - 1.0).
+- `block_index` (Int32): Integer corresponding to block.
 - `biome_index` (Int32): Integer corresponding to biome.
 - `temperature` (Float): Temperature of the biome.
 - `downfall` (Float): Downfall of the biome.
@@ -43,8 +44,8 @@ The exported file contains five grids:
 
 The `density` grid contains a dictionary of names mapping to the indices:
 
-- `block_name_N`: The Minecraft ID for `block_index == N`.
-- `biome_name_N`: The Minecraft ID for `biome_index == N`.
+- `block_name_N`: The Minecraft ID for a given block index, where `N` is the index.
+- `biome_name_N`: The Minecraft ID for a given biome index, where `N` is the index.
 
 ## Build Requirements
 
