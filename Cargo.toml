@@ -1,5 +1,5 @@
 [package]
-name = "mc-to-vdb"
+name = "rmc2vdb"
 version = "0.1.0"
 edition = "2024"
 

@@ -400,18 +400,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "373f5eceeeab7925e0c1098212f2fbc4d416adec9d35051a6ab251e824c1854a"
 
 [[package]]
-name = "mc-to-vdb"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "cxx",
- "cxx-build",
- "fastanvil",
- "fastnbt",
-]
-
-[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -526,6 +514,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "rmc2vdb"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "cxx",
+ "cxx-build",
+ "fastanvil",
+ "fastnbt",
 ]
 
 [[package]]

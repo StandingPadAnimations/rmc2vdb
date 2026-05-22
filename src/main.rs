@@ -41,7 +41,7 @@ mod ffi {
     }
 
     unsafe extern "C++" {
-        include!("mc-to-vdb/src/vdb_writer.h");
+        include!("rmc2vdb/src/vdb_writer.h");
         /// Serializes collected points into an OpenVDB voxel grid file.
         fn write_vdb(filename: &str, points: &[VdbPoint]) -> Result<()>;
     }

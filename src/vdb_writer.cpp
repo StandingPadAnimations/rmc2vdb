@@ -16,7 +16,7 @@
 */
 
 #include "vdb_writer.h"
-#include "mc-to-vdb/src/main.rs.h"
+#include "rmc2vdb/src/main.rs.h"
 #include <cmath>
 #include <map>
 #include <openvdb/openvdb.h>
