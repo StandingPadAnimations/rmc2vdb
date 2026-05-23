@@ -140,6 +140,7 @@ impl CoordinateMapper {
             }
         };
 
+        assert!(self.axes.len() == 3);
         (
             get_val(&self.axes[0]),
             get_val(&self.axes[1]),
@@ -167,7 +168,11 @@ fn convert_world(
         (max_x - min_x + 1) as u64 * (max_y - min_y + 1) as u64 * (max_z - min_z + 1) as u64;
     let mut last_percent = 0;
 
+    // Allocate about 75% of the voxels
+    // to reduce allocations. We don't do
+    // all voxels as air exists
     let mut points = Vec::new();
+    points.reserve((total_voxels as f64 * 0.75) as usize);
 
     for x in min_x..=max_x {
         for y in min_y..=max_y {
