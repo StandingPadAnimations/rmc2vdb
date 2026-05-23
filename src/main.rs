@@ -22,6 +22,8 @@ mod world;
 use std::fs;
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::thread;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -104,6 +106,10 @@ struct Args {
 
     #[arg(long)]
     commonmcobj_source: Option<PathBuf>,
+
+    /// Number of threads to use for processing.
+    #[arg(short, long, default_value_t = 1)]
+    threads: usize,
 }
 
 /// Orchestrates coordinate transformation and translation.
@@ -152,13 +158,13 @@ impl CoordinateMapper {
 fn convert_world(
     min_bounds: (i32, i32, i32),
     max_bounds: (i32, i32, i32),
-    world: PathBuf,
+    world_path: PathBuf,
     output: PathBuf,
     remap: &str,
     solid: bool,
     offset: (f32, f32, f32),
+    threads: usize,
 ) -> Result<()> {
-    let mut world = World::new(&world);
     let coord_mapper = CoordinateMapper::new(remap)?;
 
     let (min_x, min_y, min_z) = min_bounds;
@@ -166,63 +172,106 @@ fn convert_world(
 
     let total_voxels =
         (max_x - min_x + 1) as u64 * (max_y - min_y + 1) as u64 * (max_z - min_z + 1) as u64;
-    let mut last_percent = 0;
 
-    // Allocate about 75% of the voxels
-    // to reduce allocations. We don't do
-    // all voxels as air exists
-    let mut points = Vec::new();
-    points.reserve((total_voxels as f64 * 0.75) as usize);
+    let progress = AtomicU64::new(0);
+    let last_percent = AtomicU32::new(0);
 
-    for x in min_x..=max_x {
-        for y in min_y..=max_y {
-            for z in min_z..=max_z {
-                let current_voxel =
-                    (x - min_x) as u64 * (max_y - min_y + 1) as u64 * (max_z - min_z + 1) as u64
-                        + (y - min_y) as u64 * (max_z - min_z + 1) as u64
-                        + (z - min_z) as u64;
+    let points = thread::scope(|s| {
+        let mut handles = Vec::new();
+        let x_range = max_x - min_x + 1;
+        let threads = threads.max(1);
+        let chunk_size = (x_range as f32 / threads as f32).ceil() as i32;
 
-                let percent = (current_voxel * 100 / total_voxels.max(1)) as u32;
-                if percent >= last_percent + 5 {
-                    println!("Progress: {}%", percent);
-                    last_percent = percent;
-                }
+        for i in 0..threads {
+            let start_x = min_x + i as i32 * chunk_size;
+            let end_x = (start_x + chunk_size - 1).min(max_x);
 
-                let (block, biome) = world.get_block_and_biome(x, y, z)?;
-                if is_transparent(&block) {
-                    continue;
-                }
-
-                if !solid && !is_block_visible(&mut world, x, y, z)? {
-                    continue;
-                }
-
-                let (r, g, b) = get_tint(&block, z.max(0) as f32, &biome);
-                let (out_x, out_y, out_z) = coord_mapper.map(
-                    x as f32 + offset.0,
-                    y as f32 + offset.1,
-                    z as f32 + offset.2,
-                );
-
-                let info = get_biome_map()
-                    .get(&biome as &str)
-                    .unwrap_or(&DEFAULT_BIOME_INFO);
-
-                points.push(ffi::VdbPoint {
-                    x: out_x,
-                    y: out_y,
-                    z: out_z,
-                    block,
-                    biome,
-                    temperature: info.temperature,
-                    downfall: info.downfall,
-                    r,
-                    g,
-                    b,
-                });
+            if start_x > max_x {
+                break;
             }
+
+            let world_path = &world_path;
+            let coord_mapper = &coord_mapper;
+            let progress = &progress;
+            let last_percent = &last_percent;
+
+            let handle = s.spawn(move || -> Result<Vec<ffi::VdbPoint>> {
+                let mut world = World::new(world_path);
+                let mut thread_points = Vec::new();
+
+                let update_progress = || {
+                    let current = progress.fetch_add(1, Ordering::Relaxed) + 1;
+                    let p = (current * 100 / total_voxels.max(1)) as u32;
+                    let l = last_percent.load(Ordering::Relaxed);
+                    if p >= l + 5 {
+                        let next = (p / 5) * 5;
+                        if last_percent
+                            .compare_exchange(l, next, Ordering::Relaxed, Ordering::Relaxed)
+                            .is_ok()
+                        {
+                            println!("Progress: {}%", next);
+                        }
+                    }
+                };
+
+                for x in start_x..=end_x {
+                    for y in min_y..=max_y {
+                        for z in min_z..=max_z {
+                            let (block, biome) = world.get_block_and_biome(x, y, z)?;
+                            if is_transparent(&block) {
+                                update_progress();
+                                continue;
+                            }
+
+                            if !solid && !is_block_visible(&mut world, x, y, z)? {
+                                update_progress();
+                                continue;
+                            }
+
+                            let (r, g, b) = get_tint(&block, z.max(0) as f32, &biome);
+                            let (out_x, out_y, out_z) = coord_mapper.map(
+                                x as f32 + offset.0,
+                                y as f32 + offset.1,
+                                z as f32 + offset.2,
+                            );
+
+                            let info = get_biome_map()
+                                .get(&biome as &str)
+                                .unwrap_or(&DEFAULT_BIOME_INFO);
+
+                            thread_points.push(ffi::VdbPoint {
+                                x: out_x,
+                                y: out_y,
+                                z: out_z,
+                                block,
+                                biome,
+                                temperature: info.temperature,
+                                downfall: info.downfall,
+                                r,
+                                g,
+                                b,
+                            });
+                            update_progress();
+                        }
+                    }
+                }
+                Ok(thread_points)
+            });
+            handles.push(handle);
         }
-    }
+
+        let mut all_points = Vec::new();
+        for handle in handles {
+            let p = match handle.join() {
+                Ok(Ok(p)) => p,
+                Ok(Err(e)) => return Err(e),
+                Err(_) => anyhow::bail!("Thread panicked"),
+            };
+            all_points.extend(p);
+        }
+
+        Ok(all_points)
+    })?;
 
     println!("Collected {} points. Writing VDB...", points.len());
     ffi::write_vdb(output.to_str().context("Invalid output path")?, &points)?;
@@ -247,6 +296,7 @@ fn main() -> Result<()> {
                 &args.remap,
                 args.solid,
                 header.export_offset,
+                args.threads,
             )?;
         } else {
             anyhow::bail!("Passed file must have a CommonMCOBJ header!");
@@ -278,6 +328,7 @@ fn main() -> Result<()> {
                 &args.remap,
                 args.solid,
                 (args.offset[0], args.offset[1], args.offset[2]),
+                args.threads,
             )?;
         } else {
             anyhow::bail!("--world and --output are required if not using a CommonMCOBJ source");
