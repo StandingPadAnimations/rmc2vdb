@@ -12,3 +12,13 @@ anyhow = "1.0.102"
 
 [build-dependencies]
 cxx-build = "1.0"
+
+[profile.release]
+debug = true
+lto = "thin"
+codegen-units = 1
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false
