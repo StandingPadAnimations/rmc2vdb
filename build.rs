@@ -27,5 +27,5 @@ fn main() {
     println!("cargo:rustc-link-lib=Imath-3_2");
     println!("cargo:rerun-if-changed=src/main.rs");
     println!("cargo:rerun-if-changed=src/vdb_writer.cpp");
-    println!("cargo:rerun-if-changed=src/vdb_writer.h");
+    println!("cargo:rerun-if-changed=src/vdb_writer.hpp");
 }
